@@ -1,0 +1,20 @@
+# Agent Factory Dependencies
+# Python 3.10+ required
+
+# LangChain ecosystem
+langchain-core>=0.3.0
+langchain>=0.3.0
+langgraph>=0.2.0
+
+# Agent runtime
+deepagents>=0.1.0
+
+# LLM providers (install what you need)
+langchain-anthropic>=0.3.0
+langchain-openai>=0.3.0
+
+# Data handling
+pyyaml>=6.0
+
+# Environment management
+python-dotenv>=1.0.0
