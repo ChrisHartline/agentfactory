@@ -6,16 +6,15 @@ A tool server is a standalone process that:
 2. Dispatches to registered ToolHandlers
 3. Writes JSON-RPC responses to stdout
 
-To create a tool server:
+Protocol: JSON-RPC 2.0, one message per line (MCP stdio transport).
 
-    from mcp_tools.server import StdioToolServer, ToolHandler
+Usage:
+    from agentfactory.mcp import StdioToolServer, ToolHandler
 
     class MyTool(ToolHandler):
         name = "my_tool"
         description = "Does something useful"
-        parameters = {
-            "input": {"type": "string", "description": "The input"},
-        }
+        parameters = {"input": {"type": "string", "description": "The input"}}
 
         def handle(self, params: dict) -> dict:
             return {"result": f"processed: {params['input']}"}
@@ -38,28 +37,15 @@ logger = logging.getLogger(__name__)
 
 
 class ToolHandler(ABC):
-    """
-    Base class for a tool implementation.
+    """Base class for a tool implementation."""
 
-    Subclasses define what a tool does. The server handles transport.
-    """
-
-    # Subclasses must set these
     name: str = ""
     description: str = ""
     parameters: dict[str, dict] = {}
 
     @abstractmethod
     def handle(self, params: dict[str, Any]) -> Any:
-        """
-        Execute the tool with the given parameters.
-
-        Args:
-            params: Dict of parameter name → value
-
-        Returns:
-            The tool result (will be JSON-serialized in the response)
-        """
+        """Execute the tool with the given parameters."""
         ...
 
     def get_schema(self) -> dict:
@@ -76,34 +62,28 @@ class ToolHandler(ABC):
 
 class StdioToolServer:
     """
-    JSON-RPC tool server that communicates via stdin/stdout.
+    JSON-RPC tool server communicating via stdin/stdout.
 
-    Protocol:
-    - One JSON-RPC message per line
-    - Supports methods:
-        - "tools/list" → returns registered tool schemas
-        - "tools/call" → calls a tool by name with params
-        - "ping"       → health check
+    Supported methods:
+        - "tools/list"  -> returns registered tool schemas
+        - "tools/call"  -> calls a tool by name with params
+        - "ping"        -> health check
     """
 
     def __init__(self):
         self._handlers: dict[str, ToolHandler] = {}
 
     def register(self, handler: ToolHandler) -> None:
-        """Register a tool handler."""
         if not handler.name:
             raise ValueError(f"ToolHandler {handler.__class__.__name__} has no name")
         self._handlers[handler.name] = handler
-        logger.info(f"Registered tool: {handler.name}")
 
     def run(self) -> None:
-        """
-        Main loop: read requests from stdin, dispatch, write responses to stdout.
-
-        This blocks until stdin is closed (parent process terminates).
-        """
-        logger.info(f"Tool server starting with {len(self._handlers)} tools: "
-                     f"{list(self._handlers.keys())}")
+        """Main loop: read stdin, dispatch, write stdout. Blocks until stdin closes."""
+        logger.info(
+            f"Tool server starting with {len(self._handlers)} tools: "
+            f"{list(self._handlers.keys())}"
+        )
 
         for line in sys.stdin:
             line = line.strip()
@@ -127,8 +107,6 @@ class StdioToolServer:
                 self._write_error(request_id, -32603, str(e))
 
     def _dispatch(self, method: str, params: dict) -> Any:
-        """Route a method call to the appropriate handler."""
-
         if method == "ping":
             return {"status": "ok", "tools": list(self._handlers.keys())}
 
@@ -145,27 +123,20 @@ class StdioToolServer:
                     f"Unknown tool: '{tool_name}'. "
                     f"Available: {list(self._handlers.keys())}"
                 )
-
             return handler.handle(tool_params)
 
         raise ValueError(f"Unknown method: '{method}'")
 
     def _write_result(self, request_id: Any, result: Any) -> None:
-        """Write a JSON-RPC success response to stdout."""
-        response = json.dumps({
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": result,
-        })
+        response = json.dumps(
+            {"jsonrpc": "2.0", "id": request_id, "result": result}
+        )
         sys.stdout.write(response + "\n")
         sys.stdout.flush()
 
     def _write_error(self, request_id: Any, code: int, message: str) -> None:
-        """Write a JSON-RPC error response to stdout."""
-        response = json.dumps({
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {"code": code, "message": message},
-        })
+        response = json.dumps(
+            {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+        )
         sys.stdout.write(response + "\n")
         sys.stdout.flush()
