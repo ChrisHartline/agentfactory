@@ -70,7 +70,9 @@ def _path_matches_filter(rel_path: str, knowledge_paths: list[str] | None) -> bo
     """Check if a relative path matches the knowledge_paths filter."""
     if knowledge_paths is None:
         return True
-    return any(rel_path.startswith(prefix) for prefix in knowledge_paths)
+    # Normalize to forward slashes so filters work on Windows too
+    normalized = rel_path.replace("\\", "/")
+    return any(normalized.startswith(prefix) for prefix in knowledge_paths)
 
 
 class ListDocumentsTool(ToolHandler):
