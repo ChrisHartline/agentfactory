@@ -33,6 +33,7 @@ from .models import (
 from .registry import PromptRegistry, ToolRegistry
 from .composer import PromptComposer
 from .factory import AgentFactory
+from .spec import AgentSpec, ServerDef, ServerRegistry, default_server_registry
 
 __version__ = "0.1.0"
 
@@ -42,6 +43,11 @@ __all__ = [
     "PromptComposer",
     "PromptRegistry",
     "ToolRegistry",
+    # Spec-based agents
+    "AgentSpec",
+    "ServerDef",
+    "ServerRegistry",
+    "default_server_registry",
     # Config
     "SpawnConfig",
     "SpawnResult",

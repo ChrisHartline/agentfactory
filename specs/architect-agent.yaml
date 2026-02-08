@@ -1,0 +1,19 @@
+# System Architect Agent Spec
+#
+# A minimal-tools architect that focuses on KB-driven design.
+#
+# Usage:
+#   python scripts/run_agent.py --spec specs/architect-agent.yaml --dry-run
+
+name: system-architect
+template: senior-system-architect-v2
+
+mcp_servers:
+  - knowledge_base
+
+knowledge_paths:
+  - architecture/
+  - standards/
+  - aars/
+
+reasoning: sirp

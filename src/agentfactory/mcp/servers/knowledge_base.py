@@ -52,6 +52,27 @@ def _get_kb_dir() -> Path:
     return default
 
 
+def _get_knowledge_paths() -> list[str] | None:
+    """
+    Get the per-agent knowledge path filter.
+
+    Set KNOWLEDGE_PATHS env var to a comma-separated list of subdirectory
+    prefixes (e.g., "aars/,sops/") to limit which parts of the KB this
+    agent can see. If unset, the agent sees the entire KB.
+    """
+    paths_env = os.environ.get("KNOWLEDGE_PATHS", "").strip()
+    if not paths_env:
+        return None
+    return [p.strip() for p in paths_env.split(",") if p.strip()]
+
+
+def _path_matches_filter(rel_path: str, knowledge_paths: list[str] | None) -> bool:
+    """Check if a relative path matches the knowledge_paths filter."""
+    if knowledge_paths is None:
+        return True
+    return any(rel_path.startswith(prefix) for prefix in knowledge_paths)
+
+
 class ListDocumentsTool(ToolHandler):
     name = "list_documents"
     description = (
@@ -65,9 +86,13 @@ class ListDocumentsTool(ToolHandler):
         if not kb_dir.exists():
             return {"error": f"Knowledge base directory not found: {kb_dir}"}
 
+        knowledge_paths = _get_knowledge_paths()
         docs = []
         for md_file in sorted(kb_dir.glob("**/*.md")):
-            rel_path = md_file.relative_to(kb_dir)
+            rel_path = str(md_file.relative_to(kb_dir))
+            if not _path_matches_filter(rel_path, knowledge_paths):
+                continue
+
             # Read first non-empty line as summary
             summary = ""
             try:
@@ -84,7 +109,7 @@ class ListDocumentsTool(ToolHandler):
                 summary = "(could not read)"
 
             docs.append({
-                "filename": str(rel_path),
+                "filename": rel_path,
                 "summary": summary,
                 "size_bytes": md_file.stat().st_size,
             })
@@ -120,6 +145,11 @@ class ReadDocumentTool(ToolHandler):
         # Security: ensure we stay within the knowledge base directory
         if not str(file_path).startswith(str(kb_dir)):
             return {"error": "Access denied: path is outside the knowledge base directory"}
+
+        # Knowledge paths filter: restrict which subdirectories are visible
+        knowledge_paths = _get_knowledge_paths()
+        if not _path_matches_filter(filename, knowledge_paths):
+            return {"error": f"Access denied: '{filename}' is outside allowed knowledge paths"}
 
         if not file_path.exists():
             return {"error": f"Document not found: {filename}"}
@@ -163,9 +193,12 @@ class SearchKnowledgeTool(ToolHandler):
         if not kb_dir.exists():
             return {"error": f"Knowledge base directory not found: {kb_dir}"}
 
+        knowledge_paths = _get_knowledge_paths()
         matches = []
         for md_file in sorted(kb_dir.glob("**/*.md")):
             rel_path = str(md_file.relative_to(kb_dir))
+            if not _path_matches_filter(rel_path, knowledge_paths):
+                continue
             try:
                 content = md_file.read_text(encoding="utf-8")
             except Exception:

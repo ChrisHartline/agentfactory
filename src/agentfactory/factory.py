@@ -21,6 +21,7 @@ from .models import (
 )
 from .registry import PromptRegistry, ToolRegistry
 from .composer import PromptComposer
+from .spec import AgentSpec, ServerRegistry, default_server_registry
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,13 @@ class AgentFactory:
         self,
         prompt_registry: PromptRegistry | None = None,
         tool_registry: ToolRegistry | None = None,
+        server_registry: ServerRegistry | None = None,
         default_model: str = "anthropic:claude-sonnet-4-5-20250929",
         max_recursion_depth: int = 3,
     ):
         self.prompt_registry = prompt_registry or PromptRegistry()
         self.tool_registry = tool_registry or ToolRegistry()
+        self.server_registry = server_registry or default_server_registry()
         self.composer = PromptComposer(self.tool_registry)
         self.default_model = default_model
         self.max_recursion_depth = max_recursion_depth
@@ -140,6 +143,105 @@ class AgentFactory:
             composed_prompt=composed_prompt,
             genealogy=genealogy,
         )
+
+    def from_spec(
+        self,
+        spec: AgentSpec | str,
+        task: str | None = None,
+    ) -> SpawnResult:
+        """
+        Create an agent from a declarative YAML spec.
+
+        This is the "compiler" entry point: give it a spec (or path to one),
+        and it assembles template + MCP servers + knowledge paths into a
+        running agent.
+
+        Args:
+            spec: An AgentSpec, or a path to a YAML spec file.
+            task: Override the task from the spec (optional).
+
+        Returns:
+            SpawnResult with the compiled agent and metadata.
+        """
+        from pathlib import Path
+        from .mcp.manager import ToolServerManager
+        from .mcp.bridge import register_mcp_tools
+        import os
+
+        if isinstance(spec, (str, Path)):
+            spec = AgentSpec.from_yaml(spec)
+
+        # 1. Resolve the template
+        if spec.template_is_file:
+            template = PromptTemplate.from_markdown(spec.template, name=spec.name)
+            # Register it in the prompt registry so the rest of the pipeline works
+            self.prompt_registry._templates[template.id] = template
+        else:
+            template = self.prompt_registry.get(spec.template)
+            if template is None:
+                raise ValueError(
+                    f"Template '{spec.template}' not found in registry. "
+                    f"Use a registry ID or a path ending in .md"
+                )
+
+        # 2. Start MCP servers declared in the spec
+        manager = ToolServerManager()
+        if spec.mcp_servers:
+            project_root = Path(__file__).parent.parent.parent
+            base_env = {
+                **os.environ,
+                "PYTHONPATH": str(project_root / "src"),
+            }
+
+            # Pass knowledge_paths to KB server via env var
+            if spec.knowledge_paths:
+                base_env["KNOWLEDGE_PATHS"] = ",".join(spec.knowledge_paths)
+
+            # Merge any extra env from the spec
+            base_env.update(spec.env)
+
+            for server_name in spec.mcp_servers:
+                server_def = self.server_registry.get(server_name)
+                if server_def is None:
+                    logger.warning(
+                        f"MCP server '{server_name}' not found in server registry, skipping"
+                    )
+                    continue
+
+                server_env = {**base_env, **server_def.env}
+                manager.register_server(server_name, server_def.command, env=server_env)
+
+                try:
+                    tools = manager.start(server_name)
+                    tool_names = [t["name"] for t in tools]
+                    logger.info(f"  [{server_name}] started: {tool_names}")
+                except Exception as e:
+                    logger.error(f"  [{server_name}] failed to start: {e}")
+
+            # Register discovered tools in the tool registry
+            bridge_configs = self.server_registry.to_bridge_configs(spec.mcp_servers)
+            register_mcp_tools(manager, self.tool_registry, bridge_configs)
+
+        # 3. Build SpawnConfig from the spec
+        task_context = task or spec.task
+        reasoning = ReasoningFramework(spec.reasoning) if spec.reasoning else None
+
+        config = SpawnConfig(
+            template_id=template.id,
+            tool_overrides=spec.tool_overrides,
+            model=spec.model,
+            max_iterations=spec.max_iterations,
+            reasoning_framework=reasoning,
+            task_context=task_context,
+        )
+
+        # 4. Delegate to create() for the rest of the pipeline
+        result = self.create(config)
+
+        # Attach the manager so callers can shut down MCP servers
+        result._mcp_manager = manager
+
+        return result
 
     # ── Agent building ───────────────────────────────────────
 

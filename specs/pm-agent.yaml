@@ -1,0 +1,20 @@
+# Project Manager Agent Spec
+#
+# Usage:
+#   python scripts/run_agent.py --spec specs/pm-agent.yaml --dry-run
+#   python scripts/run_agent.py --spec specs/pm-agent.yaml --task "Write a PRD for X"
+
+name: project-manager
+template: project-manager-v2
+model: anthropic:claude-sonnet-4-5-20250929
+
+mcp_servers:
+  - calculator
+  - knowledge_base
+
+knowledge_paths:
+  - aars/
+  - sops/
+
+reasoning: standard
+task: Write a PRD for the Agent Factory v1 release

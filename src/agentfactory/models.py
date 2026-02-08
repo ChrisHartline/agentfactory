@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -85,6 +86,75 @@ class PromptTemplate:
     parent_template: str | None = None
     compatible_with: list[str] = field(default_factory=list)
     supersedes: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_markdown(
+        cls,
+        path: str | Path,
+        template_id: str | None = None,
+        name: str | None = None,
+    ) -> PromptTemplate:
+        """
+        Create a PromptTemplate from an external markdown file.
+
+        The markdown file IS the system prompt. Optional YAML front matter
+        (delimited by ---) can provide metadata like domain_tags, required_tools, etc.
+
+        Example markdown file:
+
+            ---
+            domain_tags: [business, management]
+            required_tools: [knowledge_base]
+            reasoning_style: methodical
+            ---
+            # Project Manager Agent
+
+            You are a senior project manager...
+        """
+        from pathlib import Path as _Path
+        import yaml as _yaml
+
+        path = _Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Template file not found: {path}")
+
+        content = path.read_text(encoding="utf-8")
+        metadata: dict = {}
+
+        # Parse optional YAML front matter
+        if content.startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                try:
+                    metadata = _yaml.safe_load(parts[1]) or {}
+                except Exception:
+                    metadata = {}
+                content = parts[2].strip()
+
+        # Derive ID from filename if not provided
+        tid = template_id or path.stem
+        tname = name or metadata.get("name", tid.replace("-", " ").title())
+
+        return cls(
+            id=tid,
+            name=tname,
+            version=metadata.get("version", "1.0.0"),
+            description=metadata.get("description", f"Template loaded from {path.name}"),
+            system_prompt=content,
+            prompt_type=PromptType(metadata.get("prompt_type", "persona")),
+            domain_tags=metadata.get("domain_tags", []),
+            reasoning_style=ReasoningStyle(metadata.get("reasoning_style", "analytical")),
+            complexity=Complexity(metadata.get("complexity", "moderate")),
+            composable=metadata.get("composable", True),
+            required_tools=metadata.get("required_tools", []),
+            optional_tools=metadata.get("optional_tools", []),
+            recommended_graph=GraphType(metadata.get("recommended_graph", "react")),
+            max_iterations=metadata.get("max_iterations", 15),
+            quality_score=metadata.get("quality_score"),
+            tested=metadata.get("tested", False),
+            author=metadata.get("author", "external"),
+            source=str(path),
+        )
 
 
 @dataclass
