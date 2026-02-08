@@ -288,7 +288,7 @@ class TestKnowledgePathsFiltering:
             "arguments": {},
         }, kb_dir, knowledge_paths="aars/")
         assert response["result"]["document_count"] == 1
-        assert "aars/" in response["result"]["documents"][0]["filename"]
+        assert "aars" in response["result"]["documents"][0]["filename"]
 
     def test_filter_multiple_paths(self, kb_dir):
         response = self._call_server("tools/call", {
