@@ -1,20 +1,20 @@
 # Agent Factory Dependencies
 # Python 3.10+ required
+# Canonical deps are in pyproject.toml; this file is for pip install -r convenience.
 
 # LangChain ecosystem
-langchain-core>=0.3.0
-langchain>=0.3.0
-langgraph>=0.2.0
+langchain-core
+langchain
+langgraph
 
 # Agent runtime
-deepagents>=0.1.0
+deepagents
 
-# LLM providers (install what you need)
-langchain-anthropic>=0.3.0
-langchain-openai>=0.3.0
+# LLM providers
+langchain-anthropic
 
 # Data handling
-pyyaml>=6.0
+pyyaml
 
 # Environment management
-python-dotenv>=1.0.0
+python-dotenv

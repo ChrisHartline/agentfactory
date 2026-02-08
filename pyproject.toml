@@ -14,22 +14,19 @@ authors = [
 ]
 
 dependencies = [
-    "langchain-core>=0.3",
-    "langchain>=0.3",
-    "langchain-anthropic>=0.3",
-    "langgraph>=0.2",
-    "pyyaml>=6.0",
-    "python-dotenv>=1.0",
+    "langchain-core",
+    "langchain",
+    "langchain-anthropic",
+    "langgraph",
+    "deepagents",
+    "pyyaml",
+    "python-dotenv",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-]
-# Full runtime with deepagents support
-full = [
-    "deepagents",
+    "pytest",
+    "pytest-asyncio",
 ]
 
 [tool.setuptools.packages.find]
